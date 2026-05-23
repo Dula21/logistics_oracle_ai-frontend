@@ -3,69 +3,126 @@ import React, { useEffect, useState } from "react";
 import DashboardView from "./components/DashboardView";
 
 export default function LogisticsDashboard() {
+  const watchlist = ["A1023", "B5421", "C9011"];
   const [activeSku, setActiveSku] = useState("A1023");
-  const [apiData, setApiData] = useState<any>(null);
-  const [streamingAdvice, setStreamingAdvice] = useState("");
+
+  type ForecastApiResponse = {
+    sku_id?: string;
+    current_stock?: number;
+    avg_daily_sales?: number;
+    days_until_stockout?: number;
+    weekly_distribution?: Array<{ day: string; sales: number }>;
+    forecast?: Array<{
+      date: string;
+      predicted_units: number;
+      lower_bound: number;
+      upper_bound: number;
+      is_ramadan?: number;
+      is_promo?: number;
+    }>;
+  };
+
+  const [apiData, setApiData] = useState<ForecastApiResponse | null>(null);
+  const [adviceText, setAdviceText] = useState("");
   const [loadingCharts, setLoadingCharts] = useState(true);
 
-  const watchlist = ["A1023", "B5842", "C9011"]; 
+  const BACKEND_BASE_URL = "http://127.0.0.1:8000";
 
+  // ─── STEP 1: Fetch forecast (charts + KPIs) ───────────────────────────────
   useEffect(() => {
-    // 1. Reset metrics and show loading hooks when switching SKUs
-    setLoadingCharts(true);
-    setStreamingAdvice("◈ Connecting to Llama Core streaming port...");
-    setApiData(null);
+    const requestUrl = `${BACKEND_BASE_URL}/api/forecast?sku=${activeSku}`;
 
-    // 2. Fetch primary static time-series data for the charts
-    fetch(`http://127.0.0.1:8000/api/forecast?sku=${activeSku}`)
-      .then(res => {
-        if (!res.ok) throw new Error("API Data handshake blocked.");
+    queueMicrotask(() => {
+      setLoadingCharts(true);
+      setAdviceText("◈ Querying historical records & generating Llama matrix...");
+      setApiData(null);
+    });
+
+    fetch(requestUrl)
+      .then(async (res) => {
+        if (!res.ok) {
+          let backendErrorDescription = "Server Connection Dropped";
+          try {
+            const errorJson = await res.json();
+            backendErrorDescription =
+              errorJson?.detail || errorJson?.message || JSON.stringify(errorJson);
+          } catch {
+            backendErrorDescription = `HTTP Error Code: ${res.status}`;
+          }
+          throw new Error(`Backend returned ${res.status} for ${requestUrl}. ${backendErrorDescription}`);
+        }
         return res.json();
       })
-      .then(data => {
+      .then((data: ForecastApiResponse) => {
         setApiData(data);
         setLoadingCharts(false);
-        
-        // 3. Trigger the dynamic live stream immediately after charts load
-        triggerAdviceStream(activeSku);
       })
-      .catch(err => {
-        console.error("Pipeline failure:", err);
+      .catch((err) => {
+        console.error("Forecast pipeline failure:", err);
         setLoadingCharts(false);
-        setStreamingAdvice("❌ Data orchestration pipeline offline.");
+        setAdviceText(`❌ Forecast Error: ${err instanceof Error ? err.message : String(err)}`);
       });
   }, [activeSku]);
 
-  // Consumes chunked transmission blocks from /api/stream down the wire
-  const triggerAdviceStream = async (skuId: string) => {
-    try {
-      setStreamingAdvice(""); // Clear loading text container
-      const response = await fetch(`http://127.0.0.1:8000/api/stream?sku=${skuId}`);
-      
-      if (!response.body) {
-        setStreamingAdvice("⚠️ Stream channel broken or unreachable.");
-        return;
+  // ─── STEP 2: Stream advice from /api/stream once forecast data is ready ───
+  useEffect(() => {
+    // Wait until forecast data is loaded and we have the metrics we need
+    if (!apiData || loadingCharts) return;
+
+    const days = apiData.days_until_stockout ?? 14;
+    const stock = apiData.current_stock ?? 150;
+    const streamUrl = `${BACKEND_BASE_URL}/api/stream?sku=${activeSku}&days=${days}&stock=${stock}`;
+
+    setAdviceText("◈ Generating Llama advisory...");
+
+    let cancelled = false;
+
+    const streamAdvice = async () => {
+      try {
+        const response = await fetch(streamUrl);
+
+        if (!response.ok) {
+          setAdviceText(`❌ Stream Error: HTTP ${response.status}`);
+          return;
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          setAdviceText("❌ Stream Error: No response body");
+          return;
+        }
+
+        const decoder = new TextDecoder();
+        let fullText = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullText += chunk;
+          setAdviceText(fullText); // live token-by-token update
+        }
+
+        // Final decode flush
+        if (!cancelled && fullText.trim() === "") {
+          setAdviceText("No advice provided by core model.");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Stream pipeline failure:", err);
+          setAdviceText(`❌ Stream Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
+    };
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let textBuffer = "";
+    streamAdvice();
 
-      // Asynchronous data block loop reads packets live
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        // Turn raw bytes back to visible letters and update React state instantly
-        const chunk = decoder.decode(value, { stream: true });
-        textBuffer += chunk;
-        setStreamingAdvice(textBuffer);
-      }
-    } catch (error) {
-      console.error("Streaming error:", error);
-      setStreamingAdvice("⚠️ Advisory stream interrupted.");
-    }
-  };
+    // Cleanup: cancel stream if SKU changes mid-stream
+    return () => {
+      cancelled = true;
+    };
+  }, [apiData, activeSku, loadingCharts]);
 
   return (
     <div className="shell">
@@ -74,17 +131,25 @@ export default function LogisticsDashboard() {
           <span className="logo-mark">◈ ORACLE</span>
           <span className="logo-name">LOGISTICS</span>
         </div>
-        
+
         <div className="sku-list" style={{ marginTop: "20px" }}>
           <div className="nav-label">CSV SKU Watchlist</div>
-          {watchlist.map(skuId => (
-            <div 
-              key={skuId} 
+          {watchlist.map((skuId) => (
+            <div
+              key={skuId}
               className={`sku-item ${activeSku === skuId ? "selected" : ""}`}
               onClick={() => setActiveSku(skuId)}
-              style={{ padding: "12px", cursor: "pointer", border: "1px solid var(--border)", borderRadius: "8px", margin: "6px 0" }}
+              style={{
+                padding: "12px",
+                cursor: "pointer",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                margin: "6px 0",
+              }}
             >
-              <span className="mono" style={{ fontWeight: 700, color: "var(--text)" }}>{skuId}</span>
+              <span className="mono" style={{ fontWeight: 700, color: "var(--text)" }}>
+                {skuId}
+              </span>
             </div>
           ))}
         </div>
@@ -92,21 +157,25 @@ export default function LogisticsDashboard() {
 
       <main className="main">
         {loadingCharts ? (
-          <div className="loading-box">▶ ANALYZING TIME-SERIES MATRIX FOR {activeSku}...</div>
-        ) : apiData ? (
-          <DashboardView 
-            skuId={apiData.sku_id}
-            stock={150} 
-            usedUnits={Math.round(apiData.avg_daily_sales * 7)} 
-            avgSales={apiData.avg_daily_sales}
-            daysToStockout={apiData.days_until_stockout}
-            weeklyDistribution={apiData.weekly_distribution || []}
-            forecastData={apiData.forecast || []}
-            // PIPING THE LIVE UPDATING REACTION DATA HERE
-            advice={streamingAdvice}
+          <div className="loading-box">
+            ▶ ANALYZING TIME-SERIES MATRIX FOR {activeSku}...
+          </div>
+        ) : apiData && apiData.forecast ? (
+          <DashboardView
+            skuId={apiData.sku_id ?? ""}
+            stock={apiData.current_stock ?? 0}
+            usedUnits={Math.round((apiData.avg_daily_sales ?? 0) * 7)}
+            avgSales={apiData.avg_daily_sales ?? 0}
+            daysToStockout={apiData.days_until_stockout ?? 0}
+            weeklyDistribution={apiData.weekly_distribution ?? []}
+            forecastData={apiData.forecast ?? []}
+            advice={adviceText}
           />
         ) : (
-          <div className="loading-box">❌ ENGINE PIPELINE OFFLINE</div>
+          <div className="loading-box">
+            <p>❌ ENGINE PIPELINE ERROR</p>
+            <p style={{ fontSize: "12px", color: "red", marginTop: "8px" }}>{adviceText}</p>
+          </div>
         )}
       </main>
     </div>
