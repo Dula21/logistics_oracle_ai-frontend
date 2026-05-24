@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
+/* ─── FORCE DARK BASELINE ─────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #080C10;
+  --foreground: #C9D1D9;
+  --border: #1C2128;
+  --muted: #484F58;
+  --amber: #FFAA00;
+  --cyan: #00D2FF;
+  --green: #00E676;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Override any system light/dark preference — app is always dark */
+html, body {
+  background: #080C10;
+  color: #C9D1D9;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  /* Prevent white flash on load */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Remove default browser margins/padding everywhere */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Scrollbar styling to match dark theme */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0D1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363D;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484F58;
+}
+
+/* Remove blue highlight on tap/click */
+* {
+  -webkit-tap-highlight-color: transparent;
 }
