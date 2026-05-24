@@ -1,6 +1,9 @@
 "use client";
 import React from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine, Label } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar
+} from "recharts";
 
 interface DashboardProps {
   skuId: string;
@@ -9,10 +12,10 @@ interface DashboardProps {
   avgSales: number;
   daysToStockout: number;
   weeklyDistribution: Array<{ day: string; sales: number }>;
-  forecastData: Array<{ 
-    date: string; 
-    predicted_units: number; 
-    lower_bound: number; 
+  forecastData: Array<{
+    date: string;
+    predicted_units: number;
+    lower_bound: number;
     upper_bound: number;
     is_ramadan?: number;
     is_promo?: number;
@@ -20,23 +23,47 @@ interface DashboardProps {
   advice: string;
 }
 
-export default function DashboardView({ 
-  skuId, stock, usedUnits, avgSales, daysToStockout, weeklyDistribution = [], forecastData = [], advice 
+export default function DashboardView({
+  skuId, stock, usedUnits, avgSales, daysToStockout,
+  weeklyDistribution = [], forecastData = [], advice
 }: DashboardProps) {
-  
-  // Traffic light status flag based on cold remaining warehouse runway metrics
-  const statusColor = daysToStockout < 7 ? "#FF3333" : daysToStockout < 15 ? "#FFAA00" : "#00CC66";
 
-  // Custom Tooltip component to highlight contextual business factors inside the charts
+  const statusColor = daysToStockout < 7 ? "#FF4444" : daysToStockout < 15 ? "#FFAA00" : "#00E676";
+  const statusLabel = daysToStockout < 7 ? "CRITICAL" : daysToStockout < 15 ? "WARNING" : "SECURE";
+  const statusGlow = daysToStockout < 7
+    ? "0 0 20px rgba(255,68,68,0.4)"
+    : daysToStockout < 15
+    ? "0 0 20px rgba(255,170,0,0.4)"
+    : "0 0 20px rgba(0,230,118,0.4)";
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div style={{ background: "#0D1117", border: "1px solid #21262D", padding: "12px", borderRadius: "8px" }}>
-          <p style={{ margin: 0, fontFamily: "Space Mono", fontSize: "11px", color: "#8B949E" }}>Date: {data.date}</p>
-          <p style={{ margin: "4px 0 0 0", fontWeight: 700, color: "var(--amber)" }}>Sales: {data.predicted_units} Units</p>
-          {data.is_ramadan === 1 && <p style={{ margin: "4px 0 0 0", color: "#A855F7", fontSize: "11px", fontWeight: "bold" }}>☪ Ramadan Holiday Peak</p>}
-          {data.is_promo === 1 && <p style={{ margin: "4px 0 0 0", color: "#EC4899", fontSize: "11px", fontWeight: "bold" }}>⚡ Promo Drive Active</p>}
+        <div style={{
+          background: "rgba(13,17,23,0.95)",
+          border: "1px solid rgba(255,170,0,0.3)",
+          padding: "12px 16px",
+          borderRadius: "10px",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+        }}>
+          <p style={{ margin: 0, fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#8B949E", letterSpacing: "0.08em" }}>
+            {data.date}
+          </p>
+          <p style={{ margin: "6px 0 0 0", fontWeight: 700, color: "#FFAA00", fontSize: "15px", fontFamily: "JetBrains Mono, monospace" }}>
+            {data.predicted_units} <span style={{ fontSize: "10px", color: "#8B949E" }}>units</span>
+          </p>
+          {data.is_ramadan === 1 && (
+            <p style={{ margin: "6px 0 0 0", color: "#A855F7", fontSize: "10px", fontWeight: 600, letterSpacing: "0.05em" }}>
+              ☪ RAMADAN PEAK
+            </p>
+          )}
+          {data.is_promo === 1 && (
+            <p style={{ margin: "4px 0 0 0", color: "#EC4899", fontSize: "10px", fontWeight: 600, letterSpacing: "0.05em" }}>
+              ⚡ PROMO ACTIVE
+            </p>
+          )}
         </div>
       );
     }
@@ -44,104 +71,314 @@ export default function DashboardView({
   };
 
   return (
-    <div className="body-grid" style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "24px" }}>
-      <div className="left-col" style={{ display: "flex", flexDirection: "column", gap: "24px", minWidth: 0 }}>
-        
-        {/* --- EXECUTIVES REORDER METRIC KPI ROW --- */}
-        <div className="kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
-          <div className="kpi" style={{ borderLeft: "4px solid #00D2FF", background: "#161B22", padding: "16px", borderRadius: "12px" }}>
-            <div style={{ fontSize: "11px", color: "#8B949E", textTransform: "uppercase" }}>Active Target SKU</div>
-            <div className="mono" style={{ color: "#00D2FF", fontSize: "24px", fontWeight: 700, marginTop: "4px" }}>{skuId || "N/A"}</div>
-            <div style={{ fontSize: "11px", color: "#484F58", marginTop: "2px" }}>Active Ledger Focus</div>
-          </div>
-          <div className="kpi" style={{ borderLeft: "4px solid #00CC66", background: "#161B22", padding: "16px", borderRadius: "12px" }}>
-            <div style={{ fontSize: "11px", color: "#8B949E", textTransform: "uppercase" }}>Remaining Units</div>
-            <div className="mono" style={{ color: "#00CC66", fontSize: "24px", fontWeight: 700, marginTop: "4px" }}>{stock}</div>
-            <div style={{ fontSize: "11px", color: "#484F58", marginTop: "2px" }}>Physical JAFZA / D3 Stock</div>
-          </div>
-          <div className="kpi" style={{ borderLeft: "4px solid #FFAA00", background: "#161B22", padding: "16px", borderRadius: "12px" }}>
-            <div style={{ fontSize: "11px", color: "#8B949E", textTransform: "uppercase" }}>Avg Daily Velocity</div>
-            <div className="mono" style={{ color: "#FFAA00", fontSize: "24px", fontWeight: 700, marginTop: "4px" }}>{avgSales}</div>
-            <div style={{ fontSize: "11px", color: "#484F58", marginTop: "2px" }}>Units Consumed / Day</div>
-          </div>
-          <div className="kpi" style={{ borderLeft: `4px solid ${statusColor}`, background: "#161B22", padding: "16px", borderRadius: "12px" }}>
-            <div style={{ fontSize: "11px", color: "#8B949E", textTransform: "uppercase" }}>Estimated Depletion</div>
-            <div className="mono" style={{ color: statusColor, fontSize: "24px", fontWeight: 700, marginTop: "4px" }}>{daysToStockout}d</div>
-            <div style={{ fontSize: "11px", color: "#484F58", marginTop: "2px" }}>Runway Risk Window</div>
-          </div>
-        </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
 
-        {/* --- TIME SERIES TREND TIMELINE (REFLECTING REAL CHRONOLOGICAL DATA ROWS) --- */}
-        <div className="chart-block" style={{ background: "#161B22", padding: "20px", borderRadius: "12px", border: "1px solid #30363D" }}>
-          <div style={{ display: "flex", justifyContent: "between", alignItems: "center", marginBottom: "16px" }}>
-            <div style={{ fontFamily: "Space Mono", fontSize: "12px", color: "#C9D1D9", textTransform: "uppercase" }}>
-              📊 Historical Sales Consumption Timeline View (2024 - 2025)
+        .kpi-card {
+          background: #0D1117;
+          border: 1px solid #1C2128;
+          border-radius: 16px;
+          padding: 20px;
+          position: relative;
+          overflow: hidden;
+          transition: border-color 0.2s, transform 0.2s;
+        }
+        .kpi-card:hover {
+          transform: translateY(-2px);
+          border-color: #30363D;
+        }
+        .kpi-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+        }
+        .chart-card {
+          background: #0D1117;
+          border: 1px solid #1C2128;
+          border-radius: 16px;
+          padding: 24px;
+          position: relative;
+          overflow: hidden;
+        }
+        .chart-card::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: radial-gradient(ellipse at top left, rgba(255,170,0,0.02) 0%, transparent 60%);
+          pointer-events: none;
+        }
+        .advice-panel {
+          background: #0D1117;
+          border: 1px solid #1C2128;
+          border-radius: 16px;
+          padding: 24px;
+          height: fit-content;
+          position: relative;
+          overflow: hidden;
+        }
+        .advice-panel::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 2px;
+          background: linear-gradient(90deg, #FFAA00, rgba(255,170,0,0.1));
+        }
+        .section-label {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #484F58;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .section-label::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: #1C2128;
+        }
+        .pulse-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          animation: pulse-anim 2s infinite;
+        }
+        @keyframes pulse-anim {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
+        }
+      `}</style>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: 0 }}>
+
+          {/* KPI ROW */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+
+            {/* SKU */}
+            <div className="kpi-card" style={{ borderTop: "2px solid #00D2FF" }}>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
+                Active SKU
+              </div>
+              <div style={{ fontSize: "22px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00D2FF", letterSpacing: "-0.02em" }}>
+                {skuId || "N/A"}
+              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
+                LEDGER FOCUS
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "12px", fontSize: "10px", fontFamily: "Space Mono" }}>
-              <span style={{ color: "#A855F7" }}>● Ramadan Peaks</span>
-              <span style={{ color: "#EC4899" }}>● Promo Days</span>
+
+            {/* STOCK */}
+            <div className="kpi-card" style={{ borderTop: "2px solid #00E676" }}>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
+                Stock Units
+              </div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00E676", letterSpacing: "-0.02em" }}>
+                {stock.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
+                JAFZA / D3
+              </div>
+            </div>
+
+            {/* VELOCITY */}
+            <div className="kpi-card" style={{ borderTop: "2px solid #FFAA00" }}>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
+                Daily Velocity
+              </div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#FFAA00", letterSpacing: "-0.02em" }}>
+                {avgSales}
+              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
+                UNITS / DAY
+              </div>
+            </div>
+
+            {/* DEPLETION */}
+            <div className="kpi-card" style={{ borderTop: `2px solid ${statusColor}`, boxShadow: statusGlow }}>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
+                Depletion
+              </div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: statusColor, letterSpacing: "-0.02em" }}>
+                {daysToStockout}<span style={{ fontSize: "14px", marginLeft: "2px" }}>d</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "6px" }}>
+                <div className="pulse-dot" style={{ background: statusColor }} />
+                <span style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: statusColor, letterSpacing: "0.08em" }}>
+                  {statusLabel}
+                </span>
+              </div>
             </div>
           </div>
-          <div style={{ height: 240, width: "100%" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={forecastData} margin={{ left: -20, right: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262D" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontFamily: "Space Mono", fontSize: 9, fill: "#8B949E" }} />
-                <YAxis tick={{ fontFamily: "Space Mono", fontSize: 9, fill: "#8B949E" }} />
-                <Tooltip content={<CustomTooltip />} />
-                
-                {/* Visual Mapping Base Line */}
-                <Area 
-                  type="monotone" 
-                  dataKey="predicted_units" 
-                  stroke="#FFAA00" 
-                  fill="rgba(255, 170, 0, 0.04)" 
-                  strokeWidth={2} 
-                  name="Historical Sales Volume" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          {/* FORECAST CHART */}
+          <div className="chart-card">
+            <div className="section-label">
+              Projected Demand · Feb – Mar 2026
+            </div>
+            <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "10px", fontFamily: "JetBrains Mono, monospace", color: "#A855F7", display: "flex", alignItems: "center", gap: "5px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#A855F7", display: "inline-block" }} />
+                Ramadan
+              </span>
+              <span style={{ fontSize: "10px", fontFamily: "JetBrains Mono, monospace", color: "#EC4899", display: "flex", alignItems: "center", gap: "5px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#EC4899", display: "inline-block" }} />
+                Promo
+              </span>
+            </div>
+            <div style={{ height: 220, width: "100%" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={forecastData} margin={{ left: -20, right: 8, bottom: 0, top: 8 }}>
+                  <defs>
+                    <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FFAA00" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#FFAA00" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 6" stroke="#1C2128" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="predicted_units"
+                    stroke="#FFAA00"
+                    strokeWidth={2}
+                    fill="url(#forecastGrad)"
+                    name="Projected Units"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#FFAA00", stroke: "#0D1117", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
+
+          {/* WEEKLY DISTRIBUTION */}
+          <div className="chart-card">
+            <div className="section-label">
+              Weekly Demand Pattern
+            </div>
+            <div style={{ height: 160, width: "100%" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyDistribution} margin={{ left: -20, right: 8, top: 4 }}>
+                  <CartesianGrid strokeDasharray="2 6" stroke="#1C2128" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(13,17,23,0.95)",
+                      border: "1px solid #1C2128",
+                      borderRadius: "10px",
+                      fontFamily: "JetBrains Mono, monospace",
+                      fontSize: "11px"
+                    }}
+                  />
+                  <Bar
+                    dataKey="sales"
+                    fill="#00D2FF"
+                    radius={[6, 6, 0, 0]}
+                    barSize={32}
+                    name="Avg Units"
+                    opacity={0.8}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
         </div>
 
-        {/* --- HISTORICAL DAY-OF-WEEK RUN RATE BREAKDOWN --- */}
-        <div className="chart-block" style={{ background: "#161B22", padding: "20px", borderRadius: "12px", border: "1px solid #30363D" }}>
-          <div style={{ fontFamily: "Space Mono", fontSize: "12px", color: "#C9D1D9", textTransform: "uppercase", marginBottom: "16px" }}>
-            🗓️ Average Weekly Demand Distribution Weight
+        {/* LLAMA ADVISOR PANEL */}
+        <div className="advice-panel">
+          <div style={{ marginBottom: "4px", fontFamily: "Syne, sans-serif", fontSize: "13px", fontWeight: 700, color: "#FFAA00", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            ◈ Llama Advisor
           </div>
-          <div style={{ height: 180, width: "100%" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyDistribution} margin={{ left: -20, right: 10 }}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#21262D" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontFamily: "Space Mono", fontSize: 10, fill: "#8B949E" }} />
-                <YAxis tick={{ fontFamily: "Space Mono", fontSize: 10, fill: "#8B949E" }} />
-                <Tooltip contentStyle={{ background: "#0D1117", borderColor: "#30363D" }} />
-                <Bar dataKey="sales" fill="#00D2FF" radius={[4, 4, 0, 0]} barSize={40} name="Average Units Sold" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "9px", color: "#30363D", letterSpacing: "0.1em", marginBottom: "20px" }}>
+            LIVE · SME RUNBOOK
+          </div>
+
+          <div style={{
+            fontSize: "12.5px",
+            color: "#8B949E",
+            lineHeight: "1.8",
+            whiteSpace: "pre-line",
+            fontFamily: "system-ui, sans-serif",
+            minHeight: "120px"
+          }}>
+            {advice}
+          </div>
+
+          {/* STATUS */}
+          <div style={{
+            marginTop: "24px",
+            paddingTop: "16px",
+            borderTop: "1px solid #1C2128",
+          }}>
+            <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", marginBottom: "10px" }}>
+              RUNWAY STATUS
+            </div>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: `rgba(${daysToStockout < 7 ? "255,68,68" : daysToStockout < 15 ? "255,170,0" : "0,230,118"}, 0.08)`,
+              border: `1px solid ${statusColor}22`,
+              borderRadius: "8px",
+              padding: "10px 12px"
+            }}>
+              <div className="pulse-dot" style={{ background: statusColor }} />
+              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: statusColor, fontWeight: 600, letterSpacing: "0.08em" }}>
+                {daysToStockout < 7 ? "🔴 CRITICAL" : daysToStockout < 15 ? "🟡 WARNING" : "🟢 SECURE"}
+              </span>
+              <span style={{ marginLeft: "auto", fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#484F58" }}>
+                {daysToStockout}d left
+              </span>
+            </div>
+          </div>
+
+          {/* STOCK BURN BAR */}
+          <div style={{ marginTop: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "9px", color: "#484F58", letterSpacing: "0.08em" }}>STOCK BURN</span>
+              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "9px", color: "#484F58" }}>{usedUnits} / wk</span>
+            </div>
+            <div style={{ height: "4px", background: "#1C2128", borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min(100, (usedUnits / (stock || 1)) * 100 * 4)}%`,
+                background: `linear-gradient(90deg, ${statusColor}, ${statusColor}88)`,
+                borderRadius: "2px",
+                transition: "width 0.6s ease"
+              }} />
+            </div>
           </div>
         </div>
-
       </div>
-
-      {/* --- BUSINESS INTELLIGENCE RUNBOOK STRATEGY PANEL --- */}
-      <div className="right-col" style={{ background: "#161B22", padding: "24px", borderRadius: "12px", border: "1px solid #30363D", height: "fit-content" }}>
-        <div style={{ fontFamily: "Space Mono", fontSize: "14px", fontWeight: 700, color: "#FFAA00", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          ◈ Llama Core Advisor
-        </div>
-        <div style={{ fontSize: "10px", color: "#8B949E", marginBottom: "20px", fontFamily: "Space Mono" }}>LIVE SME RUNBOOK PROTOCOL</div>
-        <div style={{ fontSize: "13px", color: "#C9D1D9", lineHeight: "1.7", whiteSpace: "pre-line", fontFamily: "system-ui" }}>
-          {advice}
-        </div>
-        <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #21262D", display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyBetween: "space-between", fontSize: "11px" }}>
-            <span style={{ color: "#8B949E" }}>Traffic Status Threshold:</span>
-            <span style={{ color: statusColor, fontWeight: "bold", textTransform: "uppercase" }}>
-              {daysToStockout < 7 ? "🔴 CRITICAL" : daysToStockout < 15 ? "🟡 WARNING" : "🟢 SECURE"}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
