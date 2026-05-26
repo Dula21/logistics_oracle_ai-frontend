@@ -1,5 +1,7 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
+import { saveToHistory } from "./HistoryPanel";
+import { exportDashboardPDF } from "../utils/exportPDF";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar
@@ -21,12 +23,46 @@ interface DashboardProps {
     is_promo?: number;
   }>;
   advice: string;
+  onSave?: () => void;
 }
 
 export default function DashboardView({
   skuId, stock, usedUnits, avgSales, daysToStockout,
-  weeklyDistribution = [], forecastData = [], advice
+  weeklyDistribution = [], forecastData = [], advice, onSave
 }: DashboardProps) {
+
+  const [saved, setSaved] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleSave = () => {
+    saveToHistory({
+      sku_id: skuId,
+      stock,
+      days_until_stockout: daysToStockout,
+      avg_daily_sales: avgSales,
+      advice,
+      status: daysToStockout < 7 ? "CRITICAL" : daysToStockout < 15 ? "WARNING" : "SECURE",
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+    onSave?.();
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportDashboardPDF({
+        skuId,
+        stock,
+        avgSales,
+        daysToStockout,
+        usedUnits,
+        advice,
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const statusColor = daysToStockout < 7 ? "#FF4444" : daysToStockout < 15 ? "#FFAA00" : "#00E676";
   const statusLabel = daysToStockout < 7 ? "CRITICAL" : daysToStockout < 15 ? "WARNING" : "SECURE";
@@ -55,14 +91,10 @@ export default function DashboardView({
             {data.predicted_units} <span style={{ fontSize: "10px", color: "#8B949E" }}>units</span>
           </p>
           {data.is_ramadan === 1 && (
-            <p style={{ margin: "6px 0 0 0", color: "#A855F7", fontSize: "10px", fontWeight: 600, letterSpacing: "0.05em" }}>
-              ☪ RAMADAN PEAK
-            </p>
+            <p style={{ margin: "6px 0 0 0", color: "#A855F7", fontSize: "10px", fontWeight: 600 }}>☪ RAMADAN PEAK</p>
           )}
           {data.is_promo === 1 && (
-            <p style={{ margin: "4px 0 0 0", color: "#EC4899", fontSize: "10px", fontWeight: 600, letterSpacing: "0.05em" }}>
-              ⚡ PROMO ACTIVE
-            </p>
+            <p style={{ margin: "4px 0 0 0", color: "#EC4899", fontSize: "10px", fontWeight: 600 }}>⚡ PROMO ACTIVE</p>
           )}
         </div>
       );
@@ -74,7 +106,6 @@ export default function DashboardView({
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
-
         .kpi-card {
           background: #0D1117;
           border: 1px solid #1C2128;
@@ -84,10 +115,7 @@ export default function DashboardView({
           overflow: hidden;
           transition: border-color 0.2s, transform 0.2s;
         }
-        .kpi-card:hover {
-          transform: translateY(-2px);
-          border-color: #30363D;
-        }
+        .kpi-card:hover { transform: translateY(-2px); border-color: #30363D; }
         .kpi-card::before {
           content: '';
           position: absolute;
@@ -102,13 +130,6 @@ export default function DashboardView({
           padding: 24px;
           position: relative;
           overflow: hidden;
-        }
-        .chart-card::after {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: radial-gradient(ellipse at top left, rgba(255,170,0,0.02) 0%, transparent 60%);
-          pointer-events: none;
         }
         .advice-panel {
           background: #0D1117;
@@ -144,8 +165,7 @@ export default function DashboardView({
           background: #1C2128;
         }
         .pulse-dot {
-          width: 6px;
-          height: 6px;
+          width: 6px; height: 6px;
           border-radius: 50%;
           animation: pulse-anim 2s infinite;
         }
@@ -153,6 +173,19 @@ export default function DashboardView({
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.4; transform: scale(0.8); }
         }
+        .save-btn {
+          width: 100%;
+          margin-top: 20px;
+          padding: 10px;
+          font-family: JetBrains Mono, monospace;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        .save-btn:disabled { cursor: default; opacity: 0.4; }
       `}</style>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px" }}>
@@ -160,76 +193,45 @@ export default function DashboardView({
 
           {/* KPI ROW */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-
-            {/* SKU */}
             <div className="kpi-card" style={{ borderTop: "2px solid #00D2FF" }}>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
-                Active SKU
-              </div>
-              <div style={{ fontSize: "22px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00D2FF", letterSpacing: "-0.02em" }}>
-                {skuId || "N/A"}
-              </div>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
-                LEDGER FOCUS
-              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>Active SKU</div>
+              <div style={{ fontSize: "22px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00D2FF" }}>{skuId || "N/A"}</div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>LEDGER FOCUS</div>
             </div>
 
-            {/* STOCK */}
             <div className="kpi-card" style={{ borderTop: "2px solid #00E676" }}>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
-                Stock Units
-              </div>
-              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00E676", letterSpacing: "-0.02em" }}>
-                {stock.toLocaleString()}
-              </div>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
-                JAFZA / D3
-              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>Stock Units</div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00E676" }}>{stock.toLocaleString()}</div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>JAFZA / D3</div>
             </div>
 
-            {/* VELOCITY */}
             <div className="kpi-card" style={{ borderTop: "2px solid #FFAA00" }}>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
-                Daily Velocity
-              </div>
-              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#FFAA00", letterSpacing: "-0.02em" }}>
-                {avgSales}
-              </div>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>
-                UNITS / DAY
-              </div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>Daily Velocity</div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#FFAA00" }}>{avgSales}</div>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#30363D", marginTop: "6px" }}>UNITS / DAY</div>
             </div>
 
-            {/* DEPLETION */}
             <div className="kpi-card" style={{ borderTop: `2px solid ${statusColor}`, boxShadow: statusGlow }}>
-              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>
-                Depletion
-              </div>
-              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: statusColor, letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>Depletion</div>
+              <div style={{ fontSize: "28px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: statusColor }}>
                 {daysToStockout}<span style={{ fontSize: "14px", marginLeft: "2px" }}>d</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "6px" }}>
                 <div className="pulse-dot" style={{ background: statusColor }} />
-                <span style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: statusColor, letterSpacing: "0.08em" }}>
-                  {statusLabel}
-                </span>
+                <span style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: statusColor, letterSpacing: "0.08em" }}>{statusLabel}</span>
               </div>
             </div>
           </div>
 
           {/* FORECAST CHART */}
           <div className="chart-card">
-            <div className="section-label">
-              Projected Demand · Feb – Mar 2026
-            </div>
+            <div className="section-label">Projected Demand · Feb – Mar 2026</div>
             <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
               <span style={{ fontSize: "10px", fontFamily: "JetBrains Mono, monospace", color: "#A855F7", display: "flex", alignItems: "center", gap: "5px" }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#A855F7", display: "inline-block" }} />
-                Ramadan
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#A855F7", display: "inline-block" }} />Ramadan
               </span>
               <span style={{ fontSize: "10px", fontFamily: "JetBrains Mono, monospace", color: "#EC4899", display: "flex", alignItems: "center", gap: "5px" }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#EC4899", display: "inline-block" }} />
-                Promo
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#EC4899", display: "inline-block" }} />Promo
               </span>
             </div>
             <div style={{ height: 220, width: "100%" }}>
@@ -242,28 +244,10 @@ export default function DashboardView({
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="2 6" stroke="#1C2128" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
+                  <XAxis dataKey="date" tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 8, fill: "#484F58" }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="predicted_units"
-                    stroke="#FFAA00"
-                    strokeWidth={2}
-                    fill="url(#forecastGrad)"
-                    name="Projected Units"
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#FFAA00", stroke: "#0D1117", strokeWidth: 2 }}
-                  />
+                  <Area type="monotone" dataKey="predicted_units" stroke="#FFAA00" strokeWidth={2} fill="url(#forecastGrad)" name="Projected Units" dot={false} activeDot={{ r: 4, fill: "#FFAA00", stroke: "#0D1117", strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -271,41 +255,15 @@ export default function DashboardView({
 
           {/* WEEKLY DISTRIBUTION */}
           <div className="chart-card">
-            <div className="section-label">
-              Weekly Demand Pattern
-            </div>
+            <div className="section-label">Weekly Demand Pattern</div>
             <div style={{ height: 160, width: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyDistribution} margin={{ left: -20, right: 8, top: 4 }}>
                   <CartesianGrid strokeDasharray="2 6" stroke="#1C2128" vertical={false} />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(13,17,23,0.95)",
-                      border: "1px solid #1C2128",
-                      borderRadius: "10px",
-                      fontFamily: "JetBrains Mono, monospace",
-                      fontSize: "11px"
-                    }}
-                  />
-                  <Bar
-                    dataKey="sales"
-                    fill="#00D2FF"
-                    radius={[6, 6, 0, 0]}
-                    barSize={32}
-                    name="Avg Units"
-                    opacity={0.8}
-                  />
+                  <XAxis dataKey="day" tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontFamily: "JetBrains Mono, monospace", fontSize: 9, fill: "#484F58" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "rgba(13,17,23,0.95)", border: "1px solid #1C2128", borderRadius: "10px", fontFamily: "JetBrains Mono, monospace", fontSize: "11px" }} />
+                  <Bar dataKey="sales" fill="#00D2FF" radius={[6, 6, 0, 0]} barSize={32} name="Avg Units" opacity={0.8} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -322,34 +280,47 @@ export default function DashboardView({
             LIVE · SME RUNBOOK
           </div>
 
-          <div style={{
-            fontSize: "12.5px",
-            color: "#8B949E",
-            lineHeight: "1.8",
-            whiteSpace: "pre-line",
-            fontFamily: "system-ui, sans-serif",
-            minHeight: "120px"
-          }}>
+          <div style={{ fontSize: "12.5px", color: "#8B949E", lineHeight: "1.8", whiteSpace: "pre-line", fontFamily: "system-ui, sans-serif", minHeight: "120px" }}>
             {advice}
           </div>
 
+          {/* SAVE BUTTON — single, clean */}
+          <button
+            className="save-btn"
+            onClick={handleSave}
+            disabled={!advice || advice.startsWith("◈") || saved}
+            style={{
+              color: saved ? "#00E676" : "#FFAA00",
+              background: saved ? "rgba(0,230,118,0.06)" : "rgba(255,170,0,0.06)",
+              border: `1px solid ${saved ? "rgba(0,230,118,0.3)" : "rgba(255,170,0,0.2)"}`,
+            }}
+          >
+            {saved ? "✓ SAVED TO LOG" : "◈ SAVE TO REORDER LOG"}
+          </button>
+
+          {/* EXPORT BUTTON */}
+          <button
+            className="save-btn"
+            onClick={handleExport}
+            disabled={exporting || !advice || advice.startsWith("◈")}
+            style={{
+              marginTop: "8px",
+              color: exporting ? "#484F58" : "#8B949E",
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid #1C2128",
+              opacity: (!advice || advice.startsWith("◈")) ? 0.4 : 1,
+            }}
+          >
+            {exporting ? "⏳ GENERATING PDF..." : "⬇ EXPORT TO PDF"}
+          </button>
+
           {/* STATUS */}
-          <div style={{
-            marginTop: "24px",
-            paddingTop: "16px",
-            borderTop: "1px solid #1C2128",
-          }}>
-            <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", marginBottom: "10px" }}>
-              RUNWAY STATUS
-            </div>
+          <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #1C2128" }}>
+            <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", marginBottom: "10px" }}>RUNWAY STATUS</div>
             <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
+              display: "flex", alignItems: "center", gap: "8px",
               background: `rgba(${daysToStockout < 7 ? "255,68,68" : daysToStockout < 15 ? "255,170,0" : "0,230,118"}, 0.08)`,
-              border: `1px solid ${statusColor}22`,
-              borderRadius: "8px",
-              padding: "10px 12px"
+              border: `1px solid ${statusColor}22`, borderRadius: "8px", padding: "10px 12px"
             }}>
               <div className="pulse-dot" style={{ background: statusColor }} />
               <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: statusColor, fontWeight: 600, letterSpacing: "0.08em" }}>
