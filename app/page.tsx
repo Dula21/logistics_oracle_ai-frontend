@@ -3,11 +3,15 @@ import React, { useEffect, useState } from "react";
 import DashboardView from "./components/DashboardView";
 import InsightsView from "./components/InsightsView";
 import LoadingScreen from "./components/LoadingScreen";
+import UploadView from "./components/UploadView";
+import CompareView from "./components/CompareView";
+import HistoryPanel from "./components/HistoryPanel";
+
 
 export default function LogisticsDashboard() {
   const watchlist = ["A1023", "B5421", "C9011"];
   const [activeSku, setActiveSku] = useState("A1023");
-  const [activeView, setActiveView] = useState<"dashboard" | "insights">("dashboard");
+  const [activeView, setActiveView] = useState<"dashboard" | "insights" | "upload" | "compare" | "history">("dashboard");
 
   type ForecastApiResponse = {
     sku_id?: string;
@@ -39,6 +43,13 @@ export default function LogisticsDashboard() {
   const [dashboardVisible, setDashboardVisible] = useState(false);
 
   const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+
+  const handleUploadSuccess = (skus: string[], firstSku: string) => {
+    setTimeout(() => {
+      setActiveSku(firstSku);
+      setActiveView("dashboard");
+    }, 0);
+  };
 
   // ─── Fetch forecast ───────────────────────────────────────────────
   useEffect(() => {
@@ -234,6 +245,15 @@ export default function LogisticsDashboard() {
               <div className={`nav-item ${activeView === "insights" ? "active" : ""}`} onClick={() => setActiveView("insights")}>
                 ↗ Insights
               </div>
+              <div className={`nav-item ${activeView === "upload" ? "active" : ""}`} onClick={() => setActiveView("upload")}>
+                ↑ Upload CSV
+              </div>
+              <div className={`nav-item ${activeView === "compare" ? "active" : ""}`} onClick={() => setActiveView("compare")}>
+                ⊞ Compare
+              </div>
+              <div className={`nav-item ${activeView === "history" ? "active" : ""}`} onClick={() => setActiveView("history")}>
+                ◷ History
+              </div>
             </div>
 
             <div className="divider" />
@@ -272,7 +292,9 @@ export default function LogisticsDashboard() {
 
           <main className="main">
             {activeView === "insights" && <InsightsView skuId={activeSku} />}
-
+            {activeView === "upload" && <UploadView onSuccess={handleUploadSuccess} />}
+            {activeView === "compare" && <CompareView watchlist={watchlist} />}
+            {activeView === "history" && <HistoryPanel />}
             {activeView === "dashboard" && (
               <>
                 {apiData && apiData.forecast ? (
@@ -285,6 +307,7 @@ export default function LogisticsDashboard() {
                     weeklyDistribution={apiData.weekly_distribution ?? []}
                     forecastData={apiData.forecast ?? []}
                     advice={adviceText}
+                  onSave={() => {}}
                   />
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: "#FF4444", gap: "8px" }}>
