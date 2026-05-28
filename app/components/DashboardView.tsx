@@ -106,6 +106,19 @@ export default function DashboardView({
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+        
+        .dashboard-container {
+          display: grid; 
+          grid-template-columns: 1fr 320px; 
+          gap: 20px;
+        }
+
+        .kpi-row {
+          display: grid; 
+          grid-template-columns: repeat(4, 1fr); 
+          gap: 12px;
+        }
+
         .kpi-card {
           background: #0D1117;
           border: 1px solid #1C2128;
@@ -186,13 +199,32 @@ export default function DashboardView({
           cursor: pointer;
         }
         .save-btn:disabled { cursor: default; opacity: 0.4; }
+
+        /* ── RESPONSIVE RESPONSIVENESS MEDIA QUERIES ── */
+        @media (max-width: 1200px) {
+          .kpi-row {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 1024px) {
+          .dashboard-container {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 580px) {
+          .kpi-row {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px" }}>
+      <div className="dashboard-container">
         <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: 0 }}>
 
           {/* KPI ROW */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+          <div className="kpi-row">
             <div className="kpi-card" style={{ borderTop: "2px solid #00D2FF" }}>
               <div style={{ fontSize: "9px", fontFamily: "JetBrains Mono, monospace", color: "#484F58", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "10px" }}>Active SKU</div>
               <div style={{ fontSize: "22px", fontFamily: "Syne, sans-serif", fontWeight: 800, color: "#00D2FF" }}>{skuId || "N/A"}</div>
@@ -284,7 +316,7 @@ export default function DashboardView({
             {advice}
           </div>
 
-          {/* SAVE BUTTON — single, clean */}
+          {/* SAVE BUTTON */}
           <button
             className="save-btn"
             onClick={handleSave}
