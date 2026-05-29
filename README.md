@@ -1,36 +1,26 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## ◈ Llama Advisor Stream Integration
 
-## Getting Started
+The frontend consumes live, asynchronous text streams from the FastAPI backend to display real-time logistics and strategic supply chain insights. 
 
-First, run the development server:
+### 📋 Expected Data Formats
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+#### 1. Operational Dashboard Streams (`/api/stream`)
+Streams a 2-sentence risk-calculated action directive based on current warehouse metrics.
+* **Format:** Raw text string, no markdown headers or bullet points.
+* **Expected UI Component:** Standard text block with a streaming typewriter effect.
+* **Example Output:** > WARNING status confirmed for SKU C9011 with 15 days of runway remaining. Prepare procurement documentation this week to coordinate regional JAFZA logistics layout before stock dips further.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+#### 2. Strategic 2026 Planning Streams (`/api/stream/insights`)
+Streams a highly mathematical, numbers-driven forecasting block optimized for Dubai seasonal demand spikes.
+* **Format:** Explicitly includes mathematical formulas in plain text for data transparency.
+* **Example Output:** > To beat the pre-Ramadan freight bottleneck, lead orders for SKU A1023 must arrive at Dubai ports by January 20, 2026, with a multiplied volume target of 49.5 units/day (30.0 units/day * 1.65x Ramadan Spike * 1.25x Promo Spike). This order buffer ensures a 60-day lead time prior to Ramadan 2026, accounting for potential delays in customs clearance and warehouse receipt.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🛡️ Core UI Implementation Rules
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Do Not Parse Markdown:** The backend is rigorously instructed to avoid rendering markdown tokens (`**`, `#`, `-`). Render the incoming chunks as a standard plain text stream.
+2. **Handle Inline Exceptions/Guardrails:** The backend contains custom Python safety nets. If a stream is forcefully cut off or intercepted by a guardrail, it will prepend an emoji block. The frontend should look out for these exact strings to style them dynamically if needed:
+   * `⚠️ [Guardrail]:` (Triggered on domain violations or critical overrides)
+   * `◈ [Groq Error]` (Triggered on API or model failures)
+3. **Connection Fallbacks:** If the stream drops an HTTP status other than `200`, ensure the UI catches the error state and avoids leaving an empty, spinning loading state on the advisor card.
