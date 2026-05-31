@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import DashboardView from "./components/DashboardView";
 import InsightsView from "./components/InsightsView";
 import LoadingScreen from "./components/LoadingScreen";
@@ -9,8 +9,13 @@ import HistoryPanel from "./components/HistoryPanel";
 
 type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history";
 
+const ORIGINAL_WATCHLIST = ["A1023", "B5421", "C9011"];
+const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+
 export default function Page() {
-  const watchlist = ["A1023", "B5421", "C9011"];
+  const [watchlist, setWatchlist] = useState<string[]>(ORIGINAL_WATCHLIST);
+  const [usingCustomCsv, setUsingCustomCsv] = useState(false);
+  const [activeFileName, setActiveFileName] = useState("");
   const [activeSku, setActiveSku] = useState("A1023");
   const [activeView, setActiveView] = useState<ViewType>("dashboard");
 
@@ -41,11 +46,22 @@ export default function Page() {
   const [loaderFading, setLoaderFading] = useState(false);
   const [dashboardVisible, setDashboardVisible] = useState(false);
 
-  const BACKEND_BASE_URL = "http://127.0.0.1:8000";
-
-  const handleUploadSuccess = (skus: string[], firstSku: string) => {
+  const handleUploadSuccess = (skus: string[], firstSku: string, fileName?: string) => {
     setTimeout(() => {
+      setWatchlist(skus);
+      setUsingCustomCsv(true);
+      if (fileName) setActiveFileName(fileName);
       setActiveSku(firstSku);
+      setActiveView("dashboard");
+    }, 0);
+  };
+
+  const handleUploadComponentReset = () => {
+    setTimeout(() => {
+      setWatchlist(ORIGINAL_WATCHLIST);
+      setUsingCustomCsv(false);
+      setActiveFileName("");
+      setActiveSku(ORIGINAL_WATCHLIST[0]);
       setActiveView("dashboard");
     }, 0);
   };
@@ -153,7 +169,6 @@ export default function Page() {
           min-height: 0; 
         }
 
-        /* Sidebar styling for SKU Selector */
         .sku-sidebar {
           width: 220px;
           min-width: 220px;
@@ -200,7 +215,6 @@ export default function Page() {
           overflow-y: auto; 
         }
         
-        .divider { height: 1px; background: #1C2128; margin: 16px 0; }
         .loader-wrap { transition: opacity 0.6s ease; }
         .loader-wrap.fading { opacity: 0; }
         
@@ -211,7 +225,6 @@ export default function Page() {
         .dash-reveal { animation: dashIn 0.6s ease forwards; }
         @keyframes pulse-anim { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
 
-        /* Header Layout adjustments */
         .app-header {
           min-height: 56px;
           background: #0D1117;
@@ -248,7 +261,6 @@ export default function Page() {
         .header-nav-btn:hover { color: #FFFFFF; background: #161B22; }
         .header-nav-btn.active { color: #FFAA00; background: rgba(255,170,0,0.08); border-color: rgba(255,170,0,0.3); font-weight: 700; }
 
-        /* Footer */
         .app-footer {
           min-height: 44px;
           background: #0D1117;
@@ -269,7 +281,6 @@ export default function Page() {
         }
         .footer-link:hover { opacity: 0.8; color: #FFFFFF !important; }
 
-        /* ── RESPONSIVE MEDIA QUERIES ── */
         @media (max-width: 1024px) {
           .app-header {
             flex-direction: column;
@@ -277,7 +288,6 @@ export default function Page() {
             padding: 16px;
             gap: 16px;
           }
-          
           .header-navbar-right {
             width: 100%;
             margin-left: 0;
@@ -285,18 +295,11 @@ export default function Page() {
             padding-bottom: 4px;
             -webkit-overflow-scrolling: touch;
           }
-
-          .header-nav-btn {
-            white-space: nowrap;
-          }
+          .header-nav-btn { white-space: nowrap; }
         }
 
         @media (max-width: 768px) {
-          .body-row {
-            flex-direction: column;
-            overflow-y: auto;
-          }
-
+          .body-row { flex-direction: column; overflow-y: auto; }
           .sku-sidebar {
             width: 100%;
             min-width: 100%;
@@ -308,28 +311,10 @@ export default function Page() {
             overflow-x: auto;
             gap: 12px;
           }
-
-          .sidebar-title {
-            margin-bottom: 0;
-            padding-left: 0;
-            white-space: nowrap;
-          }
-
-          .sku-item {
-            padding: 8px 14px;
-            white-space: nowrap;
-          }
-
-          .main {
-            padding: 16px;
-          }
-
-          .app-footer {
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 12px;
-          }
+          .sidebar-title { margin-bottom: 0; padding-left: 0; white-space: nowrap; }
+          .sku-item { padding: 8px 14px; white-space: nowrap; }
+          .main { padding: 16px; }
+          .app-footer { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
         }
       `}</style>
 
@@ -346,7 +331,7 @@ export default function Page() {
 
           {/* ── HEADER ── */}
           <header className="app-header">
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontFamily: "Syne, sans-serif", fontSize: "15px", fontWeight: 800, color: "#FFAA00", letterSpacing: "0.04em" }}>
                   ◈ ORACLE
@@ -395,11 +380,13 @@ export default function Page() {
 
           {/* ── BODY ── */}
           <div className="body-row">
-            
+
             {/* ── SKU SIDEBAR ── */}
             {showSkuContext && (
               <aside className="sku-sidebar">
-                <div className="sidebar-title">Tracked SKUs</div>
+                <div className="sidebar-title">
+                  {usingCustomCsv ? "Uploaded SKUs" : "Tracked SKUs"}
+                </div>
                 {watchlist.map((sku) => (
                   <div
                     key={sku}
@@ -416,7 +403,14 @@ export default function Page() {
             {/* ── MAIN CONTENT AREA ── */}
             <main className="main">
               {activeView === "insights" && <InsightsView skuId={activeSku} />}
-              {activeView === "upload"   && <UploadView onSuccess={handleUploadSuccess} />}
+              {activeView === "upload" && (
+                <UploadView
+                  onSuccess={handleUploadSuccess}
+                  onReset={handleUploadComponentReset}
+                  isCustomActive={usingCustomCsv}
+                  activeFileName={activeFileName}
+                />
+              )}
               {activeView === "compare"  && <CompareView watchlist={watchlist} />}
               {activeView === "history"  && <HistoryPanel />}
               {activeView === "dashboard" && (
@@ -449,11 +443,9 @@ export default function Page() {
             <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#8B949E", letterSpacing: "0.1em" }}>
               ◈ ORACLE LOGISTICS · DUBAI SME INTELLIGENCE ENGINE
             </div>
-
             <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#C9D1D9", letterSpacing: "0.08em" }}>
               BUILT BY <span style={{ color: "#FFAA00", fontWeight: 700 }}>DULASI NETHMA</span>
             </div>
-
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <a href="https://www.linkedin.com/in/dulasi-nethma-913577229/" target="_blank" rel="noopener noreferrer"
                 className="footer-link" style={{ color: "#58A6FF" }}>
