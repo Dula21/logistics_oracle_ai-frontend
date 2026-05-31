@@ -2,22 +2,35 @@
 import React, { useCallback, useState, useEffect } from "react";
 
 interface UploadViewProps {
-  onSuccess: (skus: string[], firstSku: string) => void;
+  onSuccess: (skus: string[], firstSku: string, fileName: string) => void;
+  onReset?: () => void;
+  isCustomActive?: boolean;
+  activeFileName?: string;
 }
 
 const BACKEND_BASE_URL = "http://127.0.0.1:8000";
 
 type UploadState = "idle" | "dragging" | "uploading" | "success" | "error" | "resetting";
 
-export default function UploadView({ onSuccess }: UploadViewProps) {
+export default function UploadView({
+  onSuccess,
+  onReset,
+  isCustomActive = false,
+  activeFileName = "",
+}: UploadViewProps) {
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [message, setMessage] = useState("");
   const [detectedSkus, setDetectedSkus] = useState<string[]>([]);
   const [rowCount, setRowCount] = useState(0);
-  const [isOriginal, setIsOriginal] = useState(true);
   const [fileName, setFileName] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [pendingCallback, setPendingCallback] = useState<{ skus: string[]; first: string } | null>(null);
+
+  useEffect(() => {
+    if (isCustomActive && activeFileName && uploadState === "idle") {
+      setFileName(activeFileName);
+    }
+  }, [isCustomActive, activeFileName]);
 
   // ─── Countdown timer after success ───────────────────────────────
   useEffect(() => {
@@ -28,7 +41,7 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(interval);
-          onSuccess(pendingCallback.skus, pendingCallback.first);
+          onSuccess(pendingCallback.skus, pendingCallback.first, fileName);
           return 0;
         }
         return c - 1;
@@ -36,7 +49,7 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [uploadState, pendingCallback]);
+  }, [uploadState, pendingCallback, onSuccess]);
 
   // ─── Drag & Drop handlers ─────────────────────────────────────────
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -57,7 +70,6 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleUpload(file);
-    // Reset input so same file can be re-uploaded
     e.target.value = "";
   };
 
@@ -94,9 +106,7 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
       setUploadState("success");
       setDetectedSkus(data.skus_detected ?? []);
       setRowCount(data.row_count ?? 0);
-      setIsOriginal(false);
       setMessage(data.message);
-      // Store callback — countdown useEffect will fire it
       setPendingCallback({ skus: data.skus_detected, first: data.first_sku });
 
     } catch (err) {
@@ -108,11 +118,11 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
   // ─── Manual "Go Now" button ───────────────────────────────────────
   const handleGoNow = () => {
     if (pendingCallback) {
-      onSuccess(pendingCallback.skus, pendingCallback.first);
+      onSuccess(pendingCallback.skus, pendingCallback.first, fileName);
     }
   };
 
-  // ─── Reset handler ────────────────────────────────────────────────
+  // ─── Reset handler (calls backend) ───────────────────────────────
   const handleReset = async () => {
     setUploadState("resetting");
     setMessage("Reverting to original dataset...");
@@ -129,11 +139,9 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
       }
 
       setUploadState("idle");
-      setIsOriginal(true);
-      setDetectedSkus([]);
       setFileName("");
       setMessage("");
-      onSuccess(data.skus_detected, data.first_sku);
+      onReset?.();
 
     } catch (err) {
       setUploadState("error");
@@ -141,11 +149,25 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
     }
   };
 
+  // ─── Cancel handler ───────────────────────────────────────────────
+  const handleCancel = () => {
+    setPendingCallback(null);
+    setUploadState("idle");
+    setDetectedSkus([]);
+    setFileName(activeFileName);
+    setMessage("");
+    onReset?.();
+  };
+
   const isDragging = uploadState === "dragging";
   const isUploading = uploadState === "uploading";
   const isSuccess = uploadState === "success";
   const isError = uploadState === "error";
   const isResetting = uploadState === "resetting";
+
+  const displayFileName = isSuccess && fileName
+    ? fileName
+    : activeFileName || fileName;
 
   return (
     <div style={{ maxWidth: "600px", margin: "0 auto", padding: "40px 0" }}>
@@ -160,10 +182,6 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
           70%  { transform: scale(1.2); }
           100% { transform: scale(1); opacity: 1; }
         }
-        @keyframes countdown-shrink {
-          from { width: 100%; }
-          to   { width: 0%; }
-        }
         .upload-zone { transition: all 0.2s ease; }
         .upload-zone:hover {
           border-color: rgba(255,170,0,0.4) !important;
@@ -171,20 +189,24 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
         }
         .go-btn {
           font-family: JetBrains Mono, monospace;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          padding: 8px 16px;
-          border-radius: 8px;
-          cursor: pointer;
+          font-size: 10px; letter-spacing: 0.1em;
+          padding: 8px 16px; border-radius: 8px; cursor: pointer;
           transition: all 0.15s ease;
           border: 1px solid rgba(0,210,255,0.3);
-          background: rgba(0,210,255,0.08);
-          color: #00D2FF;
+          background: rgba(0,210,255,0.08); color: #00D2FF;
         }
         .go-btn:hover { background: rgba(0,210,255,0.14); }
+        .cancel-btn {
+          font-family: JetBrains Mono, monospace;
+          font-size: 10px; letter-spacing: 0.1em;
+          padding: 8px 16px; border-radius: 8px; cursor: pointer;
+          border: 1px solid #1C2128; background: transparent;
+          color: #484F58; transition: all 0.15s ease;
+        }
+        .cancel-btn:hover { border-color: #30363D; color: #8B949E; }
       `}</style>
 
-      {/* Header */}
+      {/* Header — no reset button here anymore */}
       <div style={{ marginBottom: "32px", animation: "fadeUp 0.5s ease" }}>
         <div style={{ fontFamily: "Syne, sans-serif", fontSize: "20px", fontWeight: 800, color: "#C9D1D9", marginBottom: "6px" }}>
           Upload Sales Data
@@ -194,7 +216,7 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
         </div>
       </div>
 
-      {/* Current dataset status */}
+      {/* ── STATUS BAR — single reset button lives here only ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         background: "#0D1117", border: "1px solid #1C2128",
@@ -202,12 +224,21 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
         animation: "fadeUp 0.5s ease 0.1s both",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: isOriginal ? "#00E676" : "#FFAA00" }} />
+          <div style={{
+            width: "6px", height: "6px", borderRadius: "50%",
+            background: (isCustomActive || isSuccess) ? "#FFAA00" : "#00E676",
+          }} />
           <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#8B949E", letterSpacing: "0.06em" }}>
-            {isOriginal ? "USING ORIGINAL · historic_sales.csv" : `USING UPLOAD · ${fileName}`}
+            {isSuccess
+              ? `PENDING COMMIT · ${fileName}`
+              : isCustomActive
+              ? `USING UPLOAD · ${displayFileName}`
+              : "USING ORIGINAL · historic_sales.csv"}
           </span>
         </div>
-        {!isOriginal && (
+
+        {/* THE ONE reset button — only when a custom CSV is committed, not during success countdown */}
+        {isCustomActive && !isSuccess && (
           <button
             onClick={handleReset}
             disabled={isResetting || isUploading}
@@ -235,32 +266,25 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
           style={{
             border: `2px dashed ${
               isDragging ? "rgba(255,170,0,0.6)" :
-              isSuccess ? "rgba(0,230,118,0.4)" :
-              isError ? "rgba(255,68,68,0.4)" :
+              isSuccess  ? "rgba(0,230,118,0.4)" :
+              isError    ? "rgba(255,68,68,0.4)" :
               "rgba(255,255,255,0.06)"
             }`,
-            borderRadius: "16px",
-            padding: "56px 32px",
-            textAlign: "center",
+            borderRadius: "16px", padding: "56px 32px", textAlign: "center",
             cursor: isUploading || isSuccess ? "default" : "pointer",
             background: isDragging ? "rgba(255,170,0,0.04)" : "#0D1117",
-            position: "relative",
-            overflow: "hidden",
-            animation: "fadeUp 0.5s ease 0.2s both",
-            transition: "all 0.2s ease",
+            position: "relative", overflow: "hidden",
+            animation: "fadeUp 0.5s ease 0.2s both", transition: "all 0.2s ease",
           }}
         >
-          {/* Background grid */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: `
               linear-gradient(rgba(255,170,0,0.015) 1px, transparent 1px),
               linear-gradient(90deg, rgba(255,170,0,0.015) 1px, transparent 1px)`,
-            backgroundSize: "32px 32px",
-            pointerEvents: "none",
+            backgroundSize: "32px 32px", pointerEvents: "none",
           }} />
 
-          {/* Icon */}
           <div style={{ position: "relative", marginBottom: "20px" }}>
             {isUploading || isResetting ? (
               <div style={{
@@ -293,11 +317,11 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
           </div>
 
           <div style={{ fontFamily: "Syne, sans-serif", fontSize: "15px", fontWeight: 700, color: "#C9D1D9", marginBottom: "8px" }}>
-            {isUploading ? "Processing CSV..." :
-             isResetting ? "Reverting..." :
-             isSuccess ? "Upload Successful" :
-             isError ? "Upload Failed" :
-             isDragging ? "Drop it here" :
+            {isUploading  ? "Processing CSV..."        :
+             isResetting  ? "Reverting..."             :
+             isSuccess    ? "Upload Successful"        :
+             isError      ? "Upload Failed"            :
+             isDragging   ? "Drop it here"             :
              "Drop CSV here or click to browse"}
           </div>
           <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: isError ? "#FF4444" : "#484F58", letterSpacing: "0.06em" }}>
@@ -308,19 +332,17 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
 
       <input id="csv-upload" type="file" accept=".csv" onChange={onFileInput} style={{ display: "none" }} />
 
-      {/* Success panel — stays visible with countdown */}
+      {/* Success panel — only GO NOW and CANCEL, no restore button */}
       {isSuccess && detectedSkus.length > 0 && (
         <div style={{
-          marginTop: "20px",
-          background: "#0D1117", border: "1px solid rgba(0,230,118,0.2)",
-          borderRadius: "12px", padding: "20px",
+          marginTop: "20px", background: "#0D1117",
+          border: "1px solid rgba(0,230,118,0.2)", borderRadius: "12px", padding: "20px",
           animation: "fadeUp 0.4s ease",
         }}>
           <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "9px", color: "#00E676", letterSpacing: "0.12em", marginBottom: "14px" }}>
             ✓ {rowCount} ROWS LOADED · {detectedSkus.length} SKUS DETECTED
           </div>
 
-          {/* SKU pills */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "20px" }}>
             {detectedSkus.map((sku) => (
               <div key={sku} style={{
@@ -334,38 +356,22 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
             ))}
           </div>
 
-          {/* Countdown bar + buttons */}
           <div style={{ marginBottom: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
               <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "9px", color: "#484F58", letterSpacing: "0.08em" }}>
                 AUTO-LOADING IN {countdown}s...
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button className="go-btn" onClick={handleGoNow}>
-                  ▶ GO NOW
-                </button>
-                <button
-                  onClick={() => { setPendingCallback(null); setUploadState("idle"); setIsOriginal(false); }}
-                  style={{
-                    fontFamily: "JetBrains Mono, monospace", fontSize: "10px",
-                    letterSpacing: "0.1em", padding: "8px 16px", borderRadius: "8px",
-                    cursor: "pointer", border: "1px solid #1C2128",
-                    background: "transparent", color: "#484F58", transition: "all 0.15s ease",
-                  }}
-                >
-                  ✕ CANCEL
-                </button>
+                <button className="go-btn" onClick={handleGoNow}>▶ GO NOW</button>
+                <button className="cancel-btn" onClick={handleCancel}>✕ CANCEL</button>
               </div>
             </div>
 
-            {/* Progress bar draining down */}
             <div style={{ height: "2px", background: "#1C2128", borderRadius: "2px", overflow: "hidden" }}>
               <div style={{
-                height: "100%",
-                width: `${(countdown / 5) * 100}%`,
+                height: "100%", width: `${(countdown / 5) * 100}%`,
                 background: "linear-gradient(90deg, #00E676, #00D2FF)",
-                borderRadius: "2px",
-                transition: "width 1s linear",
+                borderRadius: "2px", transition: "width 1s linear",
                 boxShadow: "0 0 6px rgba(0,230,118,0.5)",
               }} />
             </div>
@@ -390,7 +396,7 @@ export default function UploadView({ onSuccess }: UploadViewProps) {
         </div>
       )}
 
-      {/* Format guide — only when idle */}
+      {/* Format guide */}
       {(uploadState === "idle" || uploadState === "dragging") && (
         <div style={{
           marginTop: "24px", background: "#0D1117",
