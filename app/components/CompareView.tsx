@@ -5,7 +5,7 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
-const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 type SkuMetrics = {
   sku_id: string;

@@ -22,7 +22,8 @@ type InsightsMetadata = {
   historical_data_points: number;
 };
 
-const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 
 export default function InsightsView({ skuId }: InsightsProps) {
   const [data2024, setData2024] = useState<ForecastRow[]>([]);
