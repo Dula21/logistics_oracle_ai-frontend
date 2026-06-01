@@ -10,7 +10,7 @@ import HistoryPanel from "./components/HistoryPanel";
 type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history";
 
 const ORIGINAL_WATCHLIST = ["A1023", "B5421", "C9011"];
-const BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function Page() {
   const [watchlist, setWatchlist] = useState<string[]>(ORIGINAL_WATCHLIST);
