@@ -91,8 +91,12 @@ export default function UploadView({
     formData.append("file", file);
 
     try {
+       const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN;
       const res = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
         method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
 
@@ -130,7 +134,13 @@ export default function UploadView({
     setPendingCallback(null);
 
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/upload/reset`, { method: "POST" });
+      const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN;
+      const res = await fetch(`${BACKEND_BASE_URL}/api/upload/reset`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       const data = await res.json();
 
       if (!res.ok) {
