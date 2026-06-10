@@ -6,8 +6,9 @@ import LoadingScreen from "./components/LoadingScreen";
 import UploadView from "./components/UploadView";
 import CompareView from "./components/CompareView";
 import HistoryPanel from "./components/HistoryPanel";
+import InventoryView from "./components/InventoryView";
 
-type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history";
+type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history"|"inventory";
 
 const ORIGINAL_WATCHLIST = ["A1023", "B5421", "C9011"];
 const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -142,6 +143,7 @@ export default function Page() {
     compare:   "⊞ Compare",
     upload:    "↑ Upload",
     history:   "◷ History",
+    inventory: "⬡ Inventory",
   };
 
   const daysToStockout = apiData?.days_until_stockout ?? 0;
@@ -413,6 +415,11 @@ export default function Page() {
               )}
               {activeView === "compare"  && <CompareView watchlist={watchlist} />}
               {activeView === "history"  && <HistoryPanel />}
+              {activeView === "inventory" && (<InventoryView onSelectSku={(sku) => {
+                      setActiveSku(sku);
+                      setActiveView("dashboard");
+                 }} />
+               )}
               {activeView === "dashboard" && (
                 <>
                   {apiData && apiData.forecast ? (
