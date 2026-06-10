@@ -12,31 +12,79 @@ export type ReorderEntry = {
   status: "CRITICAL" | "WARNING" | "SECURE";
 };
 
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const STORAGE_KEY = "oracle_reorder_history";
 
-export function saveToHistory(entry: Omit<ReorderEntry, "id" | "timestamp">) {
-  const existing = loadHistory();
+function getToken(): string | null {
+  return process.env.NEXT_PUBLIC_ADMIN_TOKEN || null;
+}
+
+// ── DB functions ────────────────────────────────────────────────────
+export async function saveToHistory(
+  entry: Omit<ReorderEntry, "id" | "timestamp">
+): Promise<ReorderEntry> {
+  const token = getToken();
+  try {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/history/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(entry),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { ...entry, id: data.id, timestamp: data.created_at };
+    }
+  } catch {}
+  // Fallback to localStorage if API fails
+  return saveToLocalStorage(entry);
+}
+
+export async function deleteFromHistory(id: string): Promise<void> {
+  const token = getToken();
+  try {
+    await fetch(`${BACKEND_BASE_URL}/api/history/${id}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {}
+}
+
+export async function clearAllHistory(): Promise<void> {
+  const token = getToken();
+  try {
+    await fetch(`${BACKEND_BASE_URL}/api/history`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {}
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+// ── localStorage fallback ────────────────────────────────────────────
+function saveToLocalStorage(
+  entry: Omit<ReorderEntry, "id" | "timestamp">
+): ReorderEntry {
+  const existing = loadFromLocalStorage();
   const newEntry: ReorderEntry = {
     ...entry,
     id: `${Date.now()}`,
     timestamp: new Date().toISOString(),
   };
-  const updated = [newEntry, ...existing].slice(0, 50); // max 50 entries
+  const updated = [newEntry, ...existing].slice(0, 50);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   return newEntry;
 }
 
-export function loadHistory(): ReorderEntry[] {
+function loadFromLocalStorage(): ReorderEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
-}
-
-export function clearHistory() {
-  localStorage.removeItem(STORAGE_KEY);
 }
 
 const statusColor = (s: string) =>
@@ -46,19 +94,35 @@ export default function HistoryPanel() {
   const [entries, setEntries] = useState<ReorderEntry[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  async function fetchHistory() {
+    const token = getToken();
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/history`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEntries(data.entries);
+        setLoading(false);
+        return;
+      }
+    } catch {}
+    // Fallback to localStorage
+    setEntries(loadFromLocalStorage());
+    setLoading(false);
+  }
 
   useEffect(() => {
-    setEntries(loadHistory());
-
-    // Sync across tabs
-    const onStorage = () => setEntries(loadHistory());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (confirmClear) {
-      clearHistory();
+      await clearAllHistory();
       setEntries([]);
       setConfirmClear(false);
     } else {
@@ -67,10 +131,9 @@ export default function HistoryPanel() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    const updated = entries.filter((e) => e.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    setEntries(updated);
+  const handleDelete = async (id: string) => {
+    await deleteFromHistory(id);
+    setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
   const formatDate = (iso: string) => {
@@ -126,10 +189,9 @@ export default function HistoryPanel() {
             Reorder History
           </div>
           <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#484F58", letterSpacing: "0.1em" }}>
-            {entries.length} SAVED ADVISORY LOGS · STORED LOCALLY
+            {loading ? "LOADING..." : `${entries.length} SAVED ADVISORY LOGS · SYNCED TO DATABASE`}
           </div>
         </div>
-
         {entries.length > 0 && (
           <button onClick={handleClear} style={{
             fontFamily: "JetBrains Mono, monospace", fontSize: "9px",
@@ -145,8 +207,20 @@ export default function HistoryPanel() {
         )}
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div style={{
+          background: "#0D1117", border: "1px dashed #1C2128",
+          borderRadius: "16px", padding: "60px 32px", textAlign: "center",
+        }}>
+          <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#484F58", letterSpacing: "0.1em" }}>
+            FETCHING FROM DATABASE...
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {entries.length === 0 && (
+      {!loading && entries.length === 0 && (
         <div style={{
           background: "#0D1117", border: "1px dashed #1C2128",
           borderRadius: "16px", padding: "60px 32px",
@@ -163,32 +237,19 @@ export default function HistoryPanel() {
       )}
 
       {/* Entries */}
-      {entries.map((entry, idx) => {
+      {!loading && entries.map((entry, idx) => {
         const sc = statusColor(entry.status);
         const isOpen = expanded === entry.id;
-
         return (
           <div key={entry.id} className="history-row" style={{ animationDelay: `${idx * 0.05}s` }}>
-
-            {/* Row header — click to expand */}
-            <div
-              className="history-row-header"
-              onClick={() => setExpanded(isOpen ? null : entry.id)}
-            >
-              {/* Status dot */}
+            <div className="history-row-header" onClick={() => setExpanded(isOpen ? null : entry.id)}>
               <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: `0 0 6px ${sc}88` }} />
-
-              {/* SKU */}
               <div style={{ fontFamily: "Syne, sans-serif", fontSize: "14px", fontWeight: 800, color: "#00D2FF", minWidth: "60px" }}>
                 {entry.sku_id}
               </div>
-
-              {/* Date */}
               <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "10px", color: "#484F58", flex: 1 }}>
                 {formatDate(entry.timestamp)}
               </div>
-
-              {/* Quick metrics */}
               <div style={{ display: "flex", gap: "16px", marginRight: "8px" }}>
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "8px", color: "#30363D", marginBottom: "2px" }}>STOCK</div>
@@ -203,8 +264,6 @@ export default function HistoryPanel() {
                   <div style={{ fontFamily: "Syne, sans-serif", fontSize: "13px", fontWeight: 700, color: "#FFAA00" }}>{entry.avg_daily_sales}/d</div>
                 </div>
               </div>
-
-              {/* Status badge */}
               <div style={{
                 fontFamily: "JetBrains Mono, monospace", fontSize: "8px",
                 color: sc, background: `${sc}15`,
@@ -213,14 +272,10 @@ export default function HistoryPanel() {
               }}>
                 {entry.status}
               </div>
-
-              {/* Chevron */}
               <div style={{ color: "#30363D", fontSize: "10px", transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "none" }}>
                 ▼
               </div>
             </div>
-
-            {/* Expanded advice */}
             {isOpen && (
               <div style={{
                 padding: "0 18px 18px 18px",

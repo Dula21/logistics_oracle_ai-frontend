@@ -39,31 +39,48 @@ interface CompareViewProps {
 export default function CompareView({ watchlist }: CompareViewProps) {
   const [skuStates, setSkuStates] = useState<Record<string, SkuState>>({});
 
-  useEffect(() => {
-    watchlist.forEach((sku) => {
-      setSkuStates((prev) => ({
-        ...prev,
-        [sku]: { data: null, loading: true, error: "" },
-      }));
+useEffect(() => {
+    if (watchlist.length === 0) return;
 
-      fetch(`${BACKEND_BASE_URL}/api/forecast?sku=${sku}`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then((data) => {
-          setSkuStates((prev) => ({
-            ...prev,
-            [sku]: { data, loading: false, error: "" },
-          }));
-        })
-        .catch((err) => {
-          setSkuStates((prev) => ({
-            ...prev,
-            [sku]: { data: null, loading: false, error: err.message },
-          }));
-        });
+    // Set all to loading
+    const loadingState: Record<string, SkuState> = {};
+    watchlist.forEach((sku) => {
+      loadingState[sku] = { data: null, loading: true, error: "" };
     });
+    setSkuStates(loadingState);
+
+    // Single batch request
+    fetch(`${BACKEND_BASE_URL}/api/forecast/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skus: watchlist, mode: "operational" }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        const newStates: Record<string, SkuState> = {};
+
+        // Map successful forecasts
+        data.forecasts.forEach((forecast: SkuMetrics) => {
+          newStates[forecast.sku_id] = { data: forecast, loading: false, error: "" };
+        });
+
+        // Map errors
+        data.errors.forEach((err: { sku: string; error: string }) => {
+          newStates[err.sku] = { data: null, loading: false, error: err.error };
+        });
+
+        setSkuStates(newStates);
+      })
+      .catch((err) => {
+        const errorState: Record<string, SkuState> = {};
+        watchlist.forEach((sku) => {
+          errorState[sku] = { data: null, loading: false, error: err.message };
+        });
+        setSkuStates(errorState);
+      });
   }, [watchlist.join(",")]);
 
   const allLoaded = watchlist.every(
