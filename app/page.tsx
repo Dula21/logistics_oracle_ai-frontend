@@ -7,6 +7,7 @@ import UploadView from "./components/UploadView";
 import CompareView from "./components/CompareView";
 import HistoryPanel from "./components/HistoryPanel";
 import InventoryView from "./components/InventoryView";
+import LoginPage from "./components/LoginPage";
 
 type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history"|"inventory";
 
@@ -47,6 +48,27 @@ export default function Page() {
   const [loaderFading, setLoaderFading] = useState(false);
   const [dashboardVisible, setDashboardVisible] = useState(false);
 
+  // ─── Auth state ───────────────────────────────────────────────────
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
+
+  const handleLogin = (token: string, role: string, email: string) => {
+  setAuthToken(token);
+  setUserRole(role);
+  setUserEmail(email);
+  setDashboardVisible(false);
+  setShowLoader(true);
+  setLoaderFading(false);
+  setActiveView("dashboard");
+};
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setUserRole("");
+    setUserEmail("");
+  };
+
   const handleUploadSuccess = (skus: string[], firstSku: string, fileName?: string) => {
     setTimeout(() => {
       setWatchlist(skus);
@@ -69,7 +91,7 @@ export default function Page() {
 
   // ─── Fetch forecast ───────────────────────────────────────────────
   useEffect(() => {
-    if (activeView !== "dashboard") return;
+    if (!authToken || activeView !== "dashboard") return;
 
     setShowLoader(true);
     setLoaderFading(false);
@@ -95,7 +117,7 @@ export default function Page() {
             setShowLoader(false);
             setDashboardVisible(true);
           }, 600);
-        }, 2800);
+        }, 800);
       })
       .catch((err) => {
         setLoadingCharts(false);
@@ -103,7 +125,7 @@ export default function Page() {
         setDashboardVisible(true);
         setAdviceText(`❌ ${err instanceof Error ? err.message : String(err)}`);
       });
-  }, [activeSku, activeView]);
+  }, [activeSku, activeView,authToken]);
 
   // ─── Stream Llama advice ──────────────────────────────────────────
   useEffect(() => {
@@ -136,6 +158,11 @@ export default function Page() {
     })();
     return () => { cancelled = true; };
   }, [apiData, activeSku, loadingCharts, activeView]);
+
+  // ─── Auth gate ──────────────────────────────────────────────────────
+  if (!authToken) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   const NAV_LABELS: Record<ViewType, string> = {
     dashboard: "⬡ Dashboard",
@@ -377,6 +404,25 @@ export default function Page() {
                   {NAV_LABELS[v]}
                 </button>
               ))}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "12px" }}>
+                <span style={{
+                  fontFamily: "JetBrains Mono, monospace", fontSize: "9px",
+                  color: "#484F58", letterSpacing: "0.08em",
+                }}>
+                  {userEmail} · {userRole.toUpperCase()}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    fontFamily: "JetBrains Mono, monospace", fontSize: "9px",
+                    color: "#FF4444", background: "rgba(255,68,68,0.08)",
+                    border: "1px solid rgba(255,68,68,0.2)", borderRadius: "6px",
+                    padding: "5px 10px", cursor: "pointer", letterSpacing: "0.08em",
+                  }}
+                >
+                  SIGN OUT
+                </button>
+              </div>
             </div>
           </header>
 
