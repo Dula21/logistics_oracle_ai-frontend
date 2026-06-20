@@ -457,6 +457,7 @@ export default function Page() {
                   onReset={handleUploadComponentReset}
                   isCustomActive={usingCustomCsv}
                   activeFileName={activeFileName}
+                  authToken={authToken}
                 />
               )}
               {activeView === "compare"  && <CompareView watchlist={watchlist} />}

@@ -6,6 +6,7 @@ interface UploadViewProps {
   onReset?: () => void;
   isCustomActive?: boolean;
   activeFileName?: string;
+  authToken: string | null;
 }
 
 const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -18,6 +19,7 @@ export default function UploadView({
   onReset,
   isCustomActive = false,
   activeFileName = "",
+  authToken,
 }: UploadViewProps) {
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [message, setMessage] = useState("");
@@ -91,11 +93,11 @@ export default function UploadView({
     formData.append("file", file);
 
     try {
-       const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN;
+       
       const res = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
         method: "POST",
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: formData,
       });
@@ -134,11 +136,10 @@ export default function UploadView({
     setPendingCallback(null);
 
     try {
-      const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN;
       const res = await fetch(`${BACKEND_BASE_URL}/api/upload/reset`, {
         method: "POST",
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
       });
       const data = await res.json();
