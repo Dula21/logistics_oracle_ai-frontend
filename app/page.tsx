@@ -461,7 +461,7 @@ export default function Page() {
                 />
               )}
               {activeView === "compare"  && <CompareView watchlist={watchlist} />}
-              {activeView === "history"  && <HistoryPanel />}
+             {activeView === "history"  && <HistoryPanel authToken={authToken} />}
               {activeView === "inventory" && (<InventoryView onSelectSku={(sku) => {
                       setActiveSku(sku);
                       setActiveView("dashboard");
@@ -471,16 +471,17 @@ export default function Page() {
                 <>
                   {apiData && apiData.forecast ? (
                     <DashboardView
-                      skuId={apiData.sku_id ?? ""}
-                      stock={apiData.current_stock ?? 0}
-                      usedUnits={Math.round((apiData.avg_daily_sales ?? 0) * 7)}
-                      avgSales={apiData.avg_daily_sales ?? 0}
-                      daysToStockout={apiData.days_until_stockout ?? 0}
-                      weeklyDistribution={apiData.weekly_distribution ?? []}
-                      forecastData={apiData.forecast ?? []}
-                      advice={adviceText}
-                      onSave={() => {}}
-                    />
+  skuId={apiData.sku_id ?? ""}
+  stock={apiData.current_stock ?? 0}
+  usedUnits={Math.round((apiData.avg_daily_sales ?? 0) * 7)}
+  avgSales={apiData.avg_daily_sales ?? 0}
+  daysToStockout={apiData.days_until_stockout ?? 0}
+  weeklyDistribution={apiData.weekly_distribution ?? []}
+  forecastData={apiData.forecast ?? []}
+  advice={adviceText}
+  authToken={authToken}
+  onSave={() => {}}
+/>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: "#FF4444", gap: "8px" }}>
                       <p style={{ fontWeight: 700 }}>❌ PIPELINE ERROR</p>

@@ -24,11 +24,12 @@ interface DashboardProps {
   }>;
   advice: string;
   onSave?: () => void;
+  authToken: string | null;
 }
 
 export default function DashboardView({
   skuId, stock, usedUnits, avgSales, daysToStockout,
-  weeklyDistribution = [], forecastData = [], advice, onSave
+  weeklyDistribution = [], forecastData = [], advice, onSave , authToken
 }: DashboardProps) {
 
   const [saved, setSaved] = useState(false);
@@ -42,7 +43,7 @@ export default function DashboardView({
       avg_daily_sales: avgSales,
       advice,
       status: daysToStockout < 7 ? "CRITICAL" : daysToStockout < 15 ? "WARNING" : "SECURE",
-    });
+    }, authToken);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
     onSave?.();

@@ -15,15 +15,11 @@ export type ReorderEntry = {
 const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const STORAGE_KEY = "oracle_reorder_history";
 
-function getToken(): string | null {
-  return process.env.NEXT_PUBLIC_ADMIN_TOKEN || null;
-}
-
 // ── DB functions ────────────────────────────────────────────────────
 export async function saveToHistory(
-  entry: Omit<ReorderEntry, "id" | "timestamp">
+  entry: Omit<ReorderEntry, "id" | "timestamp">,
+  token: string | null
 ): Promise<ReorderEntry> {
-  const token = getToken();
   try {
     const res = await fetch(`${BACKEND_BASE_URL}/api/history/save`, {
       method: "POST",
@@ -42,8 +38,7 @@ export async function saveToHistory(
   return saveToLocalStorage(entry);
 }
 
-export async function deleteFromHistory(id: string): Promise<void> {
-  const token = getToken();
+export async function deleteFromHistory(id: string, token: string | null): Promise<void> {
   try {
     await fetch(`${BACKEND_BASE_URL}/api/history/${id}`, {
       method: "DELETE",
@@ -52,8 +47,7 @@ export async function deleteFromHistory(id: string): Promise<void> {
   } catch {}
 }
 
-export async function clearAllHistory(): Promise<void> {
-  const token = getToken();
+export async function clearAllHistory(token: string | null): Promise<void> {
   try {
     await fetch(`${BACKEND_BASE_URL}/api/history`, {
       method: "DELETE",
@@ -90,17 +84,20 @@ function loadFromLocalStorage(): ReorderEntry[] {
 const statusColor = (s: string) =>
   s === "CRITICAL" ? "#FF4444" : s === "WARNING" ? "#FFAA00" : "#00E676";
 
-export default function HistoryPanel() {
+interface HistoryPanelProps {
+  authToken: string | null;
+}
+
+export default function HistoryPanel({ authToken }: HistoryPanelProps) {
   const [entries, setEntries] = useState<ReorderEntry[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function fetchHistory() {
-    const token = getToken();
     try {
       const res = await fetch(`${BACKEND_BASE_URL}/api/history`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       });
       if (res.ok) {
         const data = await res.json();
@@ -118,11 +115,11 @@ export default function HistoryPanel() {
     fetchHistory();
     const interval = setInterval(fetchHistory, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authToken]);
 
   const handleClear = async () => {
     if (confirmClear) {
-      await clearAllHistory();
+      await clearAllHistory(authToken);
       setEntries([]);
       setConfirmClear(false);
     } else {
@@ -132,7 +129,7 @@ export default function HistoryPanel() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteFromHistory(id);
+    await deleteFromHistory(id, authToken);
     setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
