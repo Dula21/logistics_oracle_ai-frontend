@@ -206,7 +206,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 ROLE
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                {(["manager", "warehouse", "finance","admin"] as const).map((r) => (
+                {(["manager", "warehouse", "finance"] as const).map((r) => (
                   <button
                     key={r}
                     className="role-btn"
