@@ -1,13 +1,15 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import DashboardView from "./components/DashboardView";
-import InsightsView from "./components/InsightsView";
 import LoadingScreen from "./components/LoadingScreen";
-import UploadView from "./components/UploadView";
-import CompareView from "./components/CompareView";
-import HistoryPanel from "./components/HistoryPanel";
-import InventoryView from "./components/InventoryView";
 import LoginPage from "./components/LoginPage";
+
+const InsightsView = dynamic(() => import("./components/InsightsView"), { ssr: false, loading: () => null });
+const UploadView = dynamic(() => import("./components/UploadView"), { ssr: false, loading: () => null });
+const CompareView = dynamic(() => import("./components/CompareView"), { ssr: false, loading: () => null });
+const HistoryPanel = dynamic(() => import("./components/HistoryPanel"), { ssr: false, loading: () => null });
+const InventoryView = dynamic(() => import("./components/InventoryView"), { ssr: false, loading: () => null });
 
 type ViewType = "dashboard" | "insights" | "compare" | "upload" | "history"|"inventory";
 
